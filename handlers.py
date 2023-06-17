@@ -40,8 +40,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
     else:
         await context.bot.send_message(chat_id=update.effective_chat.id, text="pls give your first list some name!")
-        mycursor.execute("CREATE TABLE %s (list_id varchar(20), item varchar(20))" % "_".join(("User",str(context._user_id))))
-        mycursor.execute("INSERT INTO users (user_id, Tabl) VALUES (%d, '%s')" % (context._user_id, "_".join(("User",str(context._user_id)))))
+        mycursor.execute("CREATE TABLE %s (list_id varchar(20), item varchar(20))" % "_".join(("user",str(context._user_id))))
+        mycursor.execute("INSERT INTO users (user_id, Tabl) VALUES (%d, '%s')" % (context._user_id, "_".join(("user",str(context._user_id)))))
         mydb.commit()
         context.user_data.update({"active_mod": True})
         return 0
