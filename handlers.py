@@ -1,6 +1,8 @@
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes, ConversationHandler
+
+import telegram
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton, KeyboardButtonRequestUser
+from telegram.ext import ContextTypes, ConversationHandler, CallbackContext
 from const import mydb,mycursor, init_menu_buttons, HELP, LIST_BUTTON2
 from typing import Union, List
 
@@ -34,17 +36,27 @@ def user_check(user_id: int) -> bool:
         return True
     else: return False
 
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if user_check(context._user_id):
-        await context.bot.send_message(chat_id=update.effective_chat.id, text='user_data: %s' %context.user_data)
+        '''reply_markup = [[KeyboardButton(text='share user', request_user=KeyboardButtonRequestUser(request_id=1))]]
+        await context.bot.send_message(chat_id=update.effective_chat.id, text='user_data: %s' %context.user_data, reply_markup=ReplyKeyboardMarkup(keyboard=reply_markup, resize_keyboard=True, one_time_keyboard=True))
+'''
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=str(context.user_data))
+
         return ConversationHandler.END
     else:
         await context.bot.send_message(chat_id=update.effective_chat.id, text="pls give your first list some name!")
         mycursor.execute("CREATE TABLE %s (list_id varchar(20), item varchar(20))" % "_".join(("user",str(context._user_id))))
+        mycursor.execute("CREATE TABLE %s (list_id varchar(20) primary key, shared_users varchar(20) default NULL)" % "_".join(("sharing", str(context._user_id))))
         mycursor.execute("INSERT INTO users (user_id, Tabl) VALUES (%d, '%s')" % (context._user_id, "_".join(("user",str(context._user_id)))))
         mydb.commit()
         context.user_data.update({"active_mod": True})
         return 0
+async def shared_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    shared_id = update.message.user_shared.user_id
+    await context.bot.send_message(chat_id=update.effective_chat.id, text="you successful shared the list", reply_markup=telegram.ReplyKeyboardRemove())
+
 
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=update.effective_chat.id, text="<b>menu</b>", parse_mode="HTML" ,reply_markup=InlineKeyboardMarkup(build_menu(init_menu_buttons, n_cols=2)))
@@ -114,6 +126,10 @@ async def new_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_message(chat_id=update.effective_chat.id, text="Try to enter a name for your list one more time:")
             return 0
         else:
+            sharing_table = "_".join(("sharing", str(context._user_id)))
+            mycursor.execute("INSERT INTO %s (list_id) VALUES ('%s')" % (sharing_table, text))
+            mydb.commit()
+
             context.user_data["lists"].add(text)
 
             context.user_data.update({"default_list": text})
@@ -149,18 +165,38 @@ async def changename_Callback(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def change_list_name_(update: Update, context: ContextTypes.DEFAULT_TYPE, li:str, new_name:str):
     table = "_".join(("user", str(context._user_id)))
+    sharing_table = "_".join(("sharing", str(context._user_id)))
     default = context.user_data["default_list"]
     if new_name in context.user_data["lists"]:
         await context.bot.send_message(chat_id=update.effective_chat.id, text="list with this name is already exists")
         return 0
     else:
-        mycursor.execute("UPDATE %s SET list_id = '%s' WHERE list_id = '%s'" % (table, li, new_name))
-        mydb.commit()
-        context.user_data["lists"].remove(li)
-        context.user_data["lists"].add(new_name)
+        mycursor.execute("select shared_users from %s where list_id = '%s' " % (sharing_table, li))
+        sharing = []
+        fetch = mycursor.fetchall()[0][0]
+        if fetch:
+            logging.info(fetch)
+            sharing = fetch.split(',')
+        for i in [str(context._user_id)] + sharing:
+            a = CallbackContext[telegram.ext.ExtBot, dict, telegram.ext.ChatData, dict]
+
+            table = "_".join(("user", str(i)))
+            sharing_table = "_".join(("sharing", str(i)))
+
+            local_context = CallbackContext(application=context.application, user_id=i, chat_id=context._chat_id)
+            await context.bot.send_message(chat_id=update.effective_chat.id,
+                                           text=str(i) + " " + str(local_context.user_data))
+            mycursor.execute("UPDATE %s SET list_id = '%s' WHERE list_id = '%s'" % (table, li, new_name))
+            mycursor.execute("UPDATE %s SET list_id = '%s' WHERE list_id = '%s'" % (sharing_table, li, new_name))
+            mydb.commit()
+            local_context.user_data["lists"].remove(li)
+            local_context.user_data["lists"].add(new_name)
+            """context.user_data["lists"].remove(li)
+            context.user_data["lists"].add(new_name)"""
+
+            if li == local_context.user_data["default_list"]:
+                local_context.user_data.update({"default_list": new_name})
         await context.bot.send_message(chat_id=update.effective_chat.id, text="the name for this list has been changed")
-        if li == default:
-            context.user_data.update({"default_list": new_name})
         return ConversationHandler.END
 async def change_list_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     default = context.user_data["default_list"]
@@ -175,10 +211,12 @@ async def change_list_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def first_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message.text
-
+    sharing_table = "_".join(("sharing", str(context._user_id)))
+    logging.info("INSERT INTO %s (list_id) VALUES ('%s')" % (sharing_table, message))
     context.user_data.update({"lists": {message}})
     context.user_data.update({"default_list": message})
-
+    mycursor.execute("INSERT INTO %s (list_id) VALUES ('%s')" % (sharing_table, message))
+    mydb.commit()
     await context.bot.send_message(chat_id=update.effective_chat.id, text="Congrats, your first list called: %s" % message)
     await context.bot.send_message(chat_id=update.effective_chat.id, text=HELP, parse_mode='HTML')
     return ConversationHandler.END
@@ -258,6 +296,13 @@ async def deleteQuery_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     await delete_(table,query.data.partition('.')[2],query.message.text)
     await query.delete_message()
+async def shareQuery_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    reply_markup = [[KeyboardButton(text='share user', request_user=KeyboardButtonRequestUser(request_id=1))]]
+    await context.bot.send_message(chat_id=update.effective_chat.id,
+                                   text='press the share button to choose a user to share <b>%s</b> with' % update.callback_query.data.partition('.')[2],
+                                   reply_markup=ReplyKeyboardMarkup(keyboard=reply_markup, resize_keyboard=True,
+                                                                    one_time_keyboard=True), parse_mode='HTML')
+
 
 async def menuQuery_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logging.info("menuQuery_handler")

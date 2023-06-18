@@ -23,11 +23,11 @@ if __name__ == '__main__':
     listName_handler = CommandHandler('list_name', list_name)
     changeDefault_handler = CommandHandler('change_default', change_default)
     deleteList_handler = CommandHandler('delete_list', delete_list)
-
+    shared_handler = MessageHandler(filters.StatusUpdate.USER_SHARED, shared_handler)
     menuQuery_handler = CallbackQueryHandler(menuQuery_handler)
- #   newListQuery_handler = CallbackQueryHandler(newListQuery_handler, pattern="new_list")
-    deleteQuery_handler = CallbackQueryHandler(deleteQuery_handler, pattern="^delete_button")
 
+    deleteQuery_handler = CallbackQueryHandler(deleteQuery_handler, pattern="^delete_button")
+    shareQuery_handler = CallbackQueryHandler(shareQuery_handler, pattern='^SHARE')
     start_conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
@@ -69,8 +69,8 @@ if __name__ == '__main__':
     application.add_handler(add_handler)
     application.add_handler(listName_handler)
     application.add_handler(changeDefault_handler)
-
-  #  application.add_handler(newListQuery_handler)
+    application.add_handler(shared_handler)
+    application.add_handler(shareQuery_handler)
     application.add_handler(deleteQuery_handler)
     application.add_handler(menuQuery_handler)
 
