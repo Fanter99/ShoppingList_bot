@@ -81,7 +81,8 @@ async def add(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if context.user_data["active_mod"]:
             text = update.message.text.lower()
             table = "_".join(("user",str(context._user_id)))
-            default = context.user_data["default_list"]
+            default = context.bot_data[context._user_id]["default_list"]
+            #default = context.user_data["default_list"]
             if default != None:
                 mycursor.execute("select item from %s where item = '%s' and list_id = '%s' " % (table, text, default))
 
@@ -104,7 +105,8 @@ async def show_members(table:str, list:str, context, update):
 ]))
 async def list_(update: Update, context: ContextTypes.DEFAULT_TYPE):
     table = "_".join(("user", str(context._user_id)))
-    default = context.user_data["default_list"]
+    default = context.bot_data[context._user_id]["default_list"]
+    #default = context.user_data["default_list"]
     if default != None:
         await show_members(table,default, context,update)
     else:
@@ -121,7 +123,7 @@ async def new_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=update.effective_chat.id, text="Try to enter a name for your list one more time:")
         return 0
     else:
-        if update.message.text in context.user_data["lists"]:
+        if update.message.text in context.bot_data[context._user_id]["lists"]: #context.user_data["lists"]
             await context.bot.send_message(chat_id=update.effective_chat.id, text="list with this name is already exists")
             await context.bot.send_message(chat_id=update.effective_chat.id, text="Try to enter a name for your list one more time:")
             return 0
@@ -130,29 +132,28 @@ async def new_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
             mycursor.execute("INSERT INTO %s (list_id) VALUES ('%s')" % (sharing_table, text))
             mydb.commit()
 
-            context.user_data["lists"].add(text)
-
-            context.user_data.update({"default_list": text})
+            context.bot_data[context._user_id]["lists"].add(text)
+            context.bot_data[context._user_id].update({"default_list": text})
             await context.bot.send_message(chat_id=update.effective_chat.id, text="new list has been added. it's default now")
             return ConversationHandler.END
 
 
 async def list_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    default = context.user_data["default_list"]
+    default = context.bot_data[context._user_id]["default_list"]
     if default != None:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text= context.user_data["default_list"])
+        await context.bot.send_message(chat_id=update.effective_chat.id, text= context.bot_data[context._user_id]["default_list"])
     else:
         await context.bot.send_message(chat_id=update.effective_chat.id, text="no default list")
 
 async def all_list(update:Update, context: ContextTypes.DEFAULT_TYPE):
     if user_check(context._user_id):
-        for i in context.user_data["lists"]:
+        for i in context.bot_data[context._user_id]["lists"]:
             await context.bot.send_message(chat_id=update.effective_chat.id, text= i)
 
 async def change_default(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.args:
-        if ' '.join(context.args) in context.user_data['lists']:
-            context.user_data.update({"default_list": ' '.join(context.args)})
+        if ' '.join(context.args) in context.bot_data[context._user_id]['lists']:
+            context.bot_data[context._user_id].update({"default_list": ' '.join(context.args)})
             await context.bot.send_message(chat_id=update.effective_chat.id, text="default list has been changed!")
         else: await context.bot.send_message(chat_id=update.effective_chat.id, text="no such list")
     else:
@@ -166,8 +167,8 @@ async def changename_Callback(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def change_list_name_(update: Update, context: ContextTypes.DEFAULT_TYPE, li:str, new_name:str):
     table = "_".join(("user", str(context._user_id)))
     sharing_table = "_".join(("sharing", str(context._user_id)))
-    default = context.user_data["default_list"]
-    if new_name in context.user_data["lists"]:
+    default = context.bot_data[context._user_id]["default_list"]
+    if new_name in context.bot_data[context._user_id]["lists"]:
         await context.bot.send_message(chat_id=update.effective_chat.id, text="list with this name is already exists")
         return 0
     else:
@@ -178,32 +179,26 @@ async def change_list_name_(update: Update, context: ContextTypes.DEFAULT_TYPE, 
             logging.info(fetch)
             sharing = fetch.split(',')
         for i in [str(context._user_id)] + sharing:
-            a = CallbackContext[telegram.ext.ExtBot, dict, telegram.ext.ChatData, dict]
-
             table = "_".join(("user", str(i)))
             sharing_table = "_".join(("sharing", str(i)))
 
-            local_context = CallbackContext(application=context.application, user_id=i, chat_id=context._chat_id)
-            await context.bot.send_message(chat_id=update.effective_chat.id,
-                                           text=str(i) + " " + str(local_context.user_data))
             mycursor.execute("UPDATE %s SET list_id = '%s' WHERE list_id = '%s'" % (table, li, new_name))
             mycursor.execute("UPDATE %s SET list_id = '%s' WHERE list_id = '%s'" % (sharing_table, li, new_name))
             mydb.commit()
-            local_context.user_data["lists"].remove(li)
-            local_context.user_data["lists"].add(new_name)
-            """context.user_data["lists"].remove(li)
-            context.user_data["lists"].add(new_name)"""
+            context.bot_data[i]["lists"].remove(li)
+            context.bot_data[i]["lists"].add(new_name)
 
-            if li == local_context.user_data["default_list"]:
-                local_context.user_data.update({"default_list": new_name})
+            if li == context.bot_data[i]["default_list"]:
+                context.bot_data[i].update({"default_list": new_name})
+
         await context.bot.send_message(chat_id=update.effective_chat.id, text="the name for this list has been changed")
         return ConversationHandler.END
 async def change_list_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    default = context.user_data["default_list"]
+    default = context.bot_data[context._user_id]["default_list"]
     if default != None:
         if context.args:
             await change_list_name_(update, context, default, ' '.join(context.args))
-            context.user_data.update({"default_list": ' '.join(context.args)})
+            context.bot_data[context._user_id].update({"default_list": ' '.join(context.args)})
         else:
             await context.bot.send_message(chat_id=update.effective_chat.id, text="please, enter the new name for your list after the command")
     else:
@@ -212,11 +207,13 @@ async def change_list_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def first_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message.text
     sharing_table = "_".join(("sharing", str(context._user_id)))
-    logging.info("INSERT INTO %s (list_id) VALUES ('%s')" % (sharing_table, message))
-    context.user_data.update({"lists": {message}})
-    context.user_data.update({"default_list": message})
+    context.bot_data.update({context._user_id:{}})
+    context.bot_data[context._user_id].update({"lists": {message}})
+    context.bot_data[context._user_id].update({"default_list": message})
+
     mycursor.execute("INSERT INTO %s (list_id) VALUES ('%s')" % (sharing_table, message))
     mydb.commit()
+
     await context.bot.send_message(chat_id=update.effective_chat.id, text="Congrats, your first list called: %s" % message)
     await context.bot.send_message(chat_id=update.effective_chat.id, text=HELP, parse_mode='HTML')
     return ConversationHandler.END
@@ -228,10 +225,10 @@ async def help(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def delete_list_(update, context, li):
     table = "_".join(("user", str(context._user_id)))
-    context.user_data["lists"].remove(li)
+    context.bot_data[context._user_id]["lists"].remove(li)
 
-    if li == context.user_data["default_list"]:
-        context.user_data.update({"default_list": None})
+    if li == context.bot_data[context._user_id]["default_list"]:
+        context.bot_data[context._user_id].update({"default_list": None})
         await context.bot.send_message(chat_id=update.effective_chat.id, text="this was your default list, there is no default list now")
     mycursor.execute("DELETE FROM %s WHERE list_id = '%s' " % (table, li))
     mydb.commit()
@@ -240,7 +237,7 @@ async def delete_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     li = ' '.join(context.args)
 
     if context.args:
-        if li in context.user_data["lists"]:
+        if li in context.bot_data[context._user_id]["lists"]:
             await delete_list_(update, context, li)
         else:
             await context.bot.send_message(chat_id=update.effective_chat.id, text="there is no such list")
@@ -252,7 +249,7 @@ async def delete_(table, li, item:str):
     mydb.commit()
 async def delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
     table = "_".join(("user", str(context._user_id)))
-    default = context.user_data["default_list"]
+    default = context.bot_data[context._user_id]["default_list"]
     mycursor.execute("select item from %s where list_id = '%s' " % (table, default))
     myresult = mycursor.fetchall()
     if context.args:
@@ -307,11 +304,11 @@ async def shareQuery_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def menuQuery_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logging.info("menuQuery_handler")
     table = "_".join(("user", str(context._user_id)))
-    default = context.user_data["default_list"]
+    default = context.bot_data[context._user_id]["default_list"]
     query = update.callback_query
     await query.answer()
     async def lists_help():
-        button_list = [InlineKeyboardButton(i, callback_data=i) for i in list(context.user_data["lists"])]
+        button_list = [InlineKeyboardButton(i, callback_data=i) for i in list(context.bot_data[context._user_id]["lists"])]
         button_list.append(InlineKeyboardButton("GO BACK", callback_data="back_menu"))
         reply_markup = InlineKeyboardMarkup(build_menu(button_list, n_cols=1))
         await query.edit_message_text(text='<b>menu</b>', parse_mode='HTML', reply_markup=reply_markup)
@@ -336,10 +333,10 @@ async def menuQuery_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await delete_list_(update,context, query.data.partition('.')[2])
             await lists_help()
         case "change to default":
-            context.user_data.update({"default_list":query.data.partition('.')[2]})
+            context.bot_data[context._user_id].update({"default_list":query.data.partition('.')[2]})
             await context.bot.send_message(chat_id=update.effective_chat.id, text="default list has been changed!")
         case _:
-            if query.data in context.user_data["lists"]:
+            if query.data in context.bot_data[context._user_id]["lists"]:
                 '''def flatten(l):
                     return [item for sublist in l for item in sublist]
 '''
