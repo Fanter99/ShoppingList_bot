@@ -22,6 +22,6 @@ mycursor = mydb.cursor()
 init_menu_buttons = [
     InlineKeyboardButton("all lists", callback_data="all_lists"),
     InlineKeyboardButton("current list", callback_data="current_list"),
-    InlineKeyboardButton("new list", callback_data="new_list.boba"),
+    InlineKeyboardButton("new list", callback_data="new_list"),
 ]
-LIST_BUTTON2 = ["show members", "delete", "change name", "change to default"]
+LIST_BUTTON2 = ["show members", "delete", "change name", "change to default", "SHARE"]
