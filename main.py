@@ -23,6 +23,7 @@ if __name__ == '__main__':
     listName_handler = CommandHandler('list_name', list_name)
     changeDefault_handler = CommandHandler('change_default', change_default)
     deleteList_handler = CommandHandler('delete_list', delete_list)
+
     shared_handler = MessageHandler(filters.StatusUpdate.USER_SHARED, shared_handler)
     menuQuery_handler = CallbackQueryHandler(menuQuery_handler)
 

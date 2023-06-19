@@ -15,7 +15,7 @@ logging.basicConfig(
 if you don't want to see the logs of some class
 
 aps_logger = logging.getLogger('class')
-aps_logger.setLevel(lfreogging.WARNING)
+aps_logger.setLevel(logging.WARNING)
 '''
 def build_menu(
     buttons: List[InlineKeyboardButton],
@@ -42,20 +42,32 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         '''reply_markup = [[KeyboardButton(text='share user', request_user=KeyboardButtonRequestUser(request_id=1))]]
         await context.bot.send_message(chat_id=update.effective_chat.id, text='user_data: %s' %context.user_data, reply_markup=ReplyKeyboardMarkup(keyboard=reply_markup, resize_keyboard=True, one_time_keyboard=True))
 '''
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=str(context.user_data))
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=str(context.bot_data))
 
         return ConversationHandler.END
     else:
         await context.bot.send_message(chat_id=update.effective_chat.id, text="pls give your first list some name!")
         mycursor.execute("CREATE TABLE %s (list_id varchar(20), item varchar(20))" % "_".join(("user",str(context._user_id))))
-        mycursor.execute("CREATE TABLE %s (list_id varchar(20) primary key, shared_users varchar(20) default NULL)" % "_".join(("sharing", str(context._user_id))))
+        mycursor.execute("CREATE TABLE %s (list_id varchar(20) primary key, shared_users varchar(20) default '')" % "_".join(("sharing", str(context._user_id))))
         mycursor.execute("INSERT INTO users (user_id, Tabl) VALUES (%d, '%s')" % (context._user_id, "_".join(("user",str(context._user_id)))))
         mydb.commit()
         context.user_data.update({"active_mod": True})
         return 0
 async def shared_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     shared_id = update.message.user_shared.user_id
-    await context.bot.send_message(chat_id=update.effective_chat.id, text="you successful shared the list", reply_markup=telegram.ReplyKeyboardRemove())
+    li = context.user_data['share_query']
+    sharing_table = "_".join(("sharing", str(context._user_id)))
+
+    mycursor.execute("select shared_users from %s where list_id = '%s' " % (sharing_table, li))
+    sharing = []
+    fetch = mycursor.fetchall()[0][0]
+    if fetch:
+        logging.info(fetch)
+        sharing = fetch.split(',')
+    sharing.append(str(shared_id))
+    mycursor.execute("replace INTO %s (list_id, shared_users) VALUES ('%s', '%s')" % (sharing_table, li, ','.join(sharing)))
+    mydb.commit()
+    await context.bot.send_message(chat_id=update.effective_chat.id, text="you successful shared the list", reply_markup=telegram.ReplyKeyboardRemove(), parse_mode="HTML")
 
 
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -81,14 +93,23 @@ async def add(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if context.user_data["active_mod"]:
             text = update.message.text.lower()
             table = "_".join(("user",str(context._user_id)))
+            sharing_table = "_".join(("sharing", str(context._user_id)))
             default = context.bot_data[context._user_id]["default_list"]
-            #default = context.user_data["default_list"]
+
             if default != None:
                 mycursor.execute("select item from %s where item = '%s' and list_id = '%s' " % (table, text, default))
 
                 if not mycursor.fetchall():
-                    mycursor.execute("INSERT INTO %s (list_id, item) VALUES ('%s', '%s')" % (table, default, text))
-                    mydb.commit()
+                    mycursor.execute("select shared_users from %s where list_id = '%s' " % (sharing_table, default))
+                    sharing = []
+                    fetch = mycursor.fetchall()[0][0]
+                    if fetch:
+                        logging.info(fetch)
+                        sharing = fetch.split(',')
+                    for i in [str(context._user_id)] + sharing:
+                        table_local = "_".join(("user", i))
+                        mycursor.execute("INSERT INTO %s (list_id, item) VALUES ('%s', '%s')" % (table_local, default, text))
+                        mydb.commit()
                     await context.bot.send_message(chat_id=update.effective_chat.id, text="%s added to the list" % text)
                 else:
                     await context.bot.send_message(chat_id=update.effective_chat.id, text="item already exists")
@@ -165,25 +186,23 @@ async def changename_Callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     return await change_list_name_(update, context, li, text)
 
 async def change_list_name_(update: Update, context: ContextTypes.DEFAULT_TYPE, li:str, new_name:str):
-    table = "_".join(("user", str(context._user_id)))
     sharing_table = "_".join(("sharing", str(context._user_id)))
-    default = context.bot_data[context._user_id]["default_list"]
     if new_name in context.bot_data[context._user_id]["lists"]:
         await context.bot.send_message(chat_id=update.effective_chat.id, text="list with this name is already exists")
         return 0
     else:
         mycursor.execute("select shared_users from %s where list_id = '%s' " % (sharing_table, li))
         sharing = []
-        fetch = mycursor.fetchall()[0][0]
-        if fetch:
+        fetch = mycursor.fetchall()[0]
+        if fetch[0]:
             logging.info(fetch)
             sharing = fetch.split(',')
         for i in [str(context._user_id)] + sharing:
-            table = "_".join(("user", str(i)))
-            sharing_table = "_".join(("sharing", str(i)))
-
-            mycursor.execute("UPDATE %s SET list_id = '%s' WHERE list_id = '%s'" % (table, li, new_name))
-            mycursor.execute("UPDATE %s SET list_id = '%s' WHERE list_id = '%s'" % (sharing_table, li, new_name))
+            table = "_".join(("user", i))
+            sharing_table_local = "_".join(("sharing", i))
+            logging.info("UPDATE %s SET list_id = '%s' WHERE list_id = '%s'" % (sharing_table_local, li, new_name))
+            mycursor.execute("UPDATE %s SET list_id = '%s' WHERE list_id = '%s'" % (table, new_name,li))
+            mycursor.execute("UPDATE %s SET list_id = '%s' WHERE list_id = '%s'" % (sharing_table_local, new_name,li))
             mydb.commit()
             context.bot_data[i]["lists"].remove(li)
             context.bot_data[i]["lists"].add(new_name)
@@ -249,15 +268,21 @@ async def delete_(table, li, item:str):
     mydb.commit()
 async def delete(update: Update, context: ContextTypes.DEFAULT_TYPE):
     table = "_".join(("user", str(context._user_id)))
+    sharing_table = "_".join(("sharing", str(context._user_id)))
     default = context.bot_data[context._user_id]["default_list"]
     mycursor.execute("select item from %s where list_id = '%s' " % (table, default))
     myresult = mycursor.fetchall()
     if context.args:
         if ' '.join(context.args) in myresult:
-            for i in context.args:
-                await delete_(table,default,i)
-
-            await delete_(table,default, ' '.join(context.args))
+            mycursor.execute("select shared_users from %s where list_id = '%s' " % (sharing_table, default))
+            sharing = []
+            fetch = mycursor.fetchall()[0][0]
+            if fetch:
+                logging.info(fetch)
+                sharing = fetch.split(',')
+            for i in [str(context._user_id)] + sharing:
+                table_local = "_".join(("user", i))
+                await delete_(table_local,default, ' '.join(context.args))
             await context.bot.send_message(chat_id=update.effective_chat.id, text="item(s) has been removed from the list")
         else:
             await context.bot.send_message(chat_id=update.effective_chat.id, text="no such element in this list")
@@ -286,14 +311,24 @@ async def newListQuery_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     return 0
 
 async def deleteQuery_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    logging.info("deleteQuery_handler")
     table = "_".join(("user", str(context._user_id)))
+    sharing_table = "_".join(("sharing", str(context._user_id)))
     query = update.callback_query
+    li = query.data.partition('.')[2]
     await query.answer()
+    mycursor.execute("select shared_users from %s where list_id = '%s' " % (sharing_table, li))
+    sharing = []
+    fetch = mycursor.fetchall()[0][0]
+    if fetch:
+        logging.info(fetch)
+        sharing = fetch.split(',')
+    for i in [str(context._user_id)] + sharing:
+        table_local = "_".join(("user", i))
+        await delete_(table_local, li, query.message.text)
 
-    await delete_(table,query.data.partition('.')[2],query.message.text)
     await query.delete_message()
 async def shareQuery_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data.update({'share_query':update.callback_query.data.partition('.')[2]})
     reply_markup = [[KeyboardButton(text='share user', request_user=KeyboardButtonRequestUser(request_id=1))]]
     await context.bot.send_message(chat_id=update.effective_chat.id,
                                    text='press the share button to choose a user to share <b>%s</b> with' % update.callback_query.data.partition('.')[2],
