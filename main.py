@@ -1,4 +1,4 @@
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, PicklePersistence, CallbackQueryHandler
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, PicklePersistence, CallbackQueryHandler, Updater
 from handlers import *
 import handlers
 def main():
@@ -74,9 +74,10 @@ def main():
 
     unknown_handler = MessageHandler(filters.COMMAND, unknown)
     application.add_handler(unknown_handler)
-
-
-    application.run_polling()
+    application.initialize()
+    application.start()
+    Updater.start_polling(application.updater)
+    #application.run_polling()
 
 if __name__ == '__main__':
     main()
