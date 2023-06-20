@@ -1,10 +1,7 @@
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, PicklePersistence, CallbackQueryHandler
 from handlers import *
-
-
-
-if __name__ == '__main__':
-
+import handlers
+def main():
 
     with open("TOKEN") as f:
         TOKEN = f.read().strip()
@@ -24,11 +21,11 @@ if __name__ == '__main__':
     changeDefault_handler = CommandHandler('change_default', change_default)
     deleteList_handler = CommandHandler('delete_list', delete_list)
 
-    shared_handler = MessageHandler(filters.StatusUpdate.USER_SHARED, shared_handler)
-    menuQuery_handler = CallbackQueryHandler(menuQuery_handler)
+    shared_handler = MessageHandler(filters.StatusUpdate.USER_SHARED, handlers.shared_handler)
+    menuQuery_handler = CallbackQueryHandler(handlers.menuQuery_handler)
 
-    deleteQuery_handler = CallbackQueryHandler(deleteQuery_handler, pattern="^delete_button")
-    shareQuery_handler = CallbackQueryHandler(shareQuery_handler, pattern='^SHARE')
+    deleteQuery_handler = CallbackQueryHandler(handlers.deleteQuery_handler, pattern="^delete_button")
+    shareQuery_handler = CallbackQueryHandler(handlers.shareQuery_handler, pattern='^SHARE')
     start_conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
@@ -80,3 +77,6 @@ if __name__ == '__main__':
 
 
     application.run_polling()
+
+if __name__ == '__main__':
+    main()
