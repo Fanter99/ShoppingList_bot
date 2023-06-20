@@ -1,11 +1,10 @@
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, PicklePersistence, CallbackQueryHandler, Updater
 from handlers import *
 import handlers
-import asyncio
-async def main():
+import os
+def main():
 
-    with open("TOKEN") as f:
-        TOKEN = f.read().strip()
+    TOKEN = os.environ.get('TELEGRAM_API_TOKEN')
     my_persistence = PicklePersistence(filepath='persistence')
     application = ApplicationBuilder().token(TOKEN).persistence(persistence=my_persistence).concurrent_updates(False).build()
 
@@ -75,11 +74,8 @@ async def main():
 
     unknown_handler = MessageHandler(filters.COMMAND, unknown)
     application.add_handler(unknown_handler)
-    async with application:
-        await application.initialize()
-        await application.start()
-        await Updater.start_polling(application.updater)
-    #application.run_polling()
+
+    application.run_polling()
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    main()
