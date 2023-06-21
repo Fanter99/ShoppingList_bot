@@ -5,7 +5,7 @@ import os
 def main():
 
     TOKEN = os.environ.get('TELEGRAM_API_TOKEN')
-    my_persistence = PicklePersistence(filepath='persistence')
+    my_persistence = PicklePersistence(filepath='/app/data/persistence')
     application = ApplicationBuilder().token(TOKEN).persistence(persistence=my_persistence).concurrent_updates(False).build()
 
     add_handler = MessageHandler(filters.TEXT & (~filters.COMMAND), add)

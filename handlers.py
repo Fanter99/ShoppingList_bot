@@ -41,7 +41,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         '''reply_markup = [[KeyboardButton(text='share user', request_user=KeyboardButtonRequestUser(request_id=1))]]
         await context.bot.send_message(chat_id=update.effective_chat.id, text='user_data: %s' %context.user_data, reply_markup=ReplyKeyboardMarkup(keyboard=reply_markup, resize_keyboard=True, one_time_keyboard=True))
 '''
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=str(context.bot_data))
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=str(context.bot_data) + " " + str(context.user_data))
         return ConversationHandler.END
     else:
         await context.bot.send_message(chat_id=update.effective_chat.id, text="pls give your first list some name!")
