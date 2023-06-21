@@ -1,4 +1,4 @@
-Telegram bot on the basis of Telegram bot API (local machine version)
+Telegram bot on the basis of Telegram bot API
 
 was done with help of python-telegram-bot wrapper bib
 
